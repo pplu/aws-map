@@ -1,0 +1,11 @@
+#!/usr/bin/env perl
+
+use AWS::Network::SecurityGroupMap;
+
+my $region = $ARGV[0] or die "Usage: $0 region";
+
+my $map = AWS::Network::SecurityGroupMap->new(
+  region => $region, 
+);
+
+$map->run;
