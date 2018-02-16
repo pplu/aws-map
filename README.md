@@ -59,7 +59,7 @@ When you graph a big account, it can take a while. Be patient. Also take into ac
 
 ## Contributing
 
-Contributions are more than welcome. Take a look at the Perl Graphviz module to control the graph better: https://metacpan.org/pod/GraphViz
+Contributions are more than welcome. Take a look at the Perl Graphviz module to control the graph better: https://metacpan.org/pod/GraphViz2
 
 The source code is located here: https://github.com/pplu/aws-map
 
