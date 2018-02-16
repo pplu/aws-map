@@ -100,6 +100,50 @@ package AWS::Network::SecurityGroupMap;
     push @{ $self->_listens_to->{ $o1 }->{ $o2 } }, $port;
   }
 
+  sub _scan_elbs {
+    my $self = shift;
+
+    $self->aws->service('ELB')->DescribeAllLoadBalancers(sub {
+      my $elb = shift;
+
+      $self->add_object(name => $elb->LoadBalancerName, type => 'elb');
+
+      foreach my $sg ($elb->SecurityGroups->@*) {
+        $self->sg_holds($sg, $elb->LoadBalancerName);
+      }
+    });
+  }
+
+  sub _scan_elbv2s {
+    my $self = shift;
+
+    $self->aws->service('ELBv2')->DescribeAllLoadBalancers(sub {
+      my $elb = shift;
+
+      $self->add_object(name => $elb->LoadBalancerName, type => 'alb');
+
+      foreach my $sg ($elb->SecurityGroups->@*) {
+        $self->sg_holds($sg, $elb->LoadBalancerName);
+      }
+    });
+  }
+
+
+  sub _scan_rds {
+    my $self = shift;
+
+    $self->aws->service('RDS')->DescribeAllDBInstances(sub {
+      my $instance = shift;
+      $self->add_object(name => $instance->DBInstanceIdentifier, type => 'rds');
+
+      foreach my $sg ($instance->VpcSecurityGroups->@*) {
+        $self->sg_holds($sg->VpcSecurityGroupId, $instance->DBInstanceIdentifier);
+      }
+    });
+
+    #TODO: DescribeAllDBClusters
+  }
+
   sub _scan_instances {
     my $self = shift;
 
@@ -153,8 +197,9 @@ package AWS::Network::SecurityGroupMap;
 
     $self->_scan_instances;
     #$self->_scan_autoscalinggroups;
-    #$self->_scan_loadbalancers;
-    #$self->_scan_rds;
+    $self->_scan_elbs;
+    $self->_scan_elbv2s;
+    $self->_scan_rds;
     #$self->_scan_redshift;
 
     $self->_scan_securitygroups;
