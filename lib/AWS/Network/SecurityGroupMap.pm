@@ -16,10 +16,10 @@ package AWS::Network::SecurityGroupMap;
     default => sub {
       my $self = shift;
       GraphViz2->new(
-        global => { directed => 1 },
+        global => { directed => 1, ranksep => 5 },
         graph => {
           label => $self->title,
-          layout => 'twopi',
+          #layout => 'twopi',
         },
       );
     }
