@@ -1,10 +1,11 @@
-package AWS::Map::Object;
+package AWS::Map::Object {
   use Moose;
   has type => (is => 'ro', isa => 'Str', required => 1);
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str');
 
-package AWS::Map::SG;
+}
+package AWS::Map::SG {
   use Moose;
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str', required => 1);
@@ -16,8 +17,9 @@ package AWS::Map::SG;
     $self->listens_to->{ $o2 } = [] if (not defined $self->listens_to->{ $o2 });
     push @{ $self->listens_to->{ $o2 } }, $port;
   }
-
-package AWS::Network::SecurityGroupMap;
+}
+package AWS::Network::SecurityGroupMap {
+  use v5.10;
   use feature 'postderef';
   use Moose;
   use GraphViz2;
@@ -291,9 +293,13 @@ print Dumper($self->_sg);
       }
     }
 
+    say "Generating graph.dot";
     $self->graphviz->run(format => 'dot', output_file => 'graph.dot');
+    say "Generating graph.svg";
     $self->graphviz->run(format => 'svg', output_file => 'graph.svg');
+    say "Generating graph.png";
     $self->graphviz->run(format => 'png', output_file => 'graph.png');
+    say "Done";
   }
-
+}
 1;
