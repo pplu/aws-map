@@ -25,6 +25,7 @@ package AWS::Network::SecurityGroupMap {
   use GraphViz2;
   use Paws;
   use AWS::Map::Object;
+  no warnings 'experimental::postderef';
 
   has graphviz => (
     is => 'ro',
