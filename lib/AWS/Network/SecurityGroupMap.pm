@@ -163,7 +163,14 @@ package AWS::Network::SecurityGroupMap;
     $self->aws->service('EC2')->DescribeAllInstances(sub {
       my $rsv = shift;
       foreach my $instance ($rsv->Instances->@*) {
-        $self->add_object(name => $instance->InstanceId, type => 'i');
+        # Get the value of a tag named 'Name' from the list of tag objects
+        my ($tag) = map { $_->Value } grep { $_->Key eq 'Name' } $instance->Tags->@*; 
+
+        $self->add_object(
+          name => $instance->InstanceId,
+          type => 'i',
+          (defined $tag)?(label => $tag):(),
+        );
 
         foreach my $sg ($instance->SecurityGroups->@*) {
           $self->sg_holds($sg->GroupId, $instance->InstanceId);
@@ -223,14 +230,17 @@ package AWS::Network::SecurityGroupMap;
 use Data::Dumper;
 print Dumper($self->_objects);
 print Dumper($self->_contains);
-print Dumper($self->_listens_to);
+print Dumper($self->_sg);
 
     foreach my $object ($self->objects) {
       my %extra = ();
       $extra{ shape } = 'box';
       $extra{ labelloc } = 'b';
+      $extra{ label } = $object->name;
+      $extra{ label } .= sprintf " (%s)", $object->type if ($object->type ne 'i');
+      $extra{ label } .= $object->label if (defined $object->label);
 
-      $self->graphviz->add_node(name => $object->{name}, %extra);
+      $self->graphviz->add_node(name => $object->name, %extra);
     }
 
     foreach my $listener ($self->get_who_listens) {
