@@ -74,6 +74,11 @@ package AWS::Network::SecurityGroupMap;
     default => sub { {} }
   );
 
+  sub get_sg {
+    my ($self, $sg) = @_;
+    return $self->_sg->{ $sg };
+  }
+
   # holds what objects an SG contains
   has _contains => (
     is => 'ro',
@@ -246,12 +251,31 @@ print Dumper($self->_sg);
     foreach my $listener ($self->get_who_listens) {
       # listeners are names of security groups. There can be lots of things in an SG
       my @things_in_sg = $self->get_objects_in_sg($listener);
-      @things_in_sg = ("Things in $listener") if (not @things_in_sg);
+      if (not @things_in_sg) {
+        my $sg = $self->get_sg($listener);
+        if (defined $sg) {
+          my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
+          $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+          @things_in_sg = ($listener);
+        } else {
+          @things_in_sg = ("Things in $listener");
+        }
+      }
 
       foreach my $thing_in_sg (@things_in_sg) {
         foreach my $listened_to ($self->get_listens_to($listener)){
           my @things_in_sg2 = $self->get_objects_in_sg($listened_to);
-          @things_in_sg2 = ("Things in $listened_to") if (not @things_in_sg2);
+          if (not @things_in_sg2) {
+            my $sg = $self->get_sg($listened_to);
+            if (defined $sg) {
+              my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
+              $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+              @things_in_sg2 = ($listened_to);
+            } else {
+              @things_in_sg2 = ("Things in $listened_to");
+            }
+          }
+
 
           foreach my $thing_listened_to (@things_in_sg2){
             my $label = join ', ', $self->get_listens_on_ports($listener, $listened_to);
