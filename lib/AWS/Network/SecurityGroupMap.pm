@@ -1,8 +1,14 @@
+package AWS::Network::Object;
+  use Moose;
+  has type => (is => 'ro', isa => 'Str');
+  has name => (is => 'ro', isa => 'Str');
+
 package AWS::Network::SecurityGroupMap;
   use feature 'postderef';
   use Moose;
   use GraphViz2;
   use Paws;
+  use AWS::Network::Object;
 
   has graphviz => (
     is => 'ro',
@@ -34,14 +40,20 @@ package AWS::Network::SecurityGroupMap;
   
   has _objects => (
     is => 'ro',
-    isa => 'HashRef',
+    isa => 'HashRef[AWS::Network::Object]',
     default => sub { {} },
     traits => [ 'Hash' ],
     handles => {
       objects => 'values',
-      add_object => 'set',
     }
   );
+
+  sub add_object {
+    my ($self, %args) = @_;
+    my $o = AWS::Network::Object->new(%args);
+    $self->_objects->{ $o->name } = $o;
+  }
+
   has _listens_to => (
     is => 'ro',
     isa => 'HashRef',
@@ -76,9 +88,6 @@ package AWS::Network::SecurityGroupMap;
   sub set_listens_to {
     my ($self, $o1, $o2, $port) = @_;
 
-    #$self->_objects->{ $o1 } = $o1;
-    #$self->_objects->{ $o2 } = $o2;
-
     $self->_listens_to->{ $o1 } = {} if (not defined $self->_listens_to->{ $o1 });
     $self->_listens_to->{ $o1 }->{ $o2 } = [] if (not defined $self->_listens_to->{ $o1 }->{ $o2 });
     push @{ $self->_listens_to->{ $o1 }->{ $o2 } }, $port;
@@ -90,7 +99,8 @@ package AWS::Network::SecurityGroupMap;
     $self->aws->service('EC2')->DescribeAllInstances(sub {
       my $rsv = shift;
       foreach my $instance ($rsv->Instances->@*) {
-        $self->add_object($instance->InstanceId, { name => $instance->InstanceId, type => 'i' });
+        $self->add_object(name => $instance->InstanceId, type => 'i');
+
         foreach my $sg ($instance->SecurityGroups->@*) {
           $self->is_in_set($instance->InstanceId, $sg->GroupId);
         }
@@ -157,7 +167,7 @@ print Dumper($self->_listens_to);
 
     foreach my $listener ($self->get_who_listens) {
       # listeners are names of security groups. There can be lots of things in an SG
-      my @things_in_sg = $self->in_set($listener);
+      my @things_in_sg = $self->get_objects_in_sg($listener);
       @things_in_sg = ("Things in $listener") if (not @things_in_sg);
 
       foreach my $thing_in_sg (@things_in_sg) {
