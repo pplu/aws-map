@@ -236,11 +236,6 @@ package AWS::Network::SecurityGroupMap {
 
     $self->_scan_securitygroups;
 
-use Data::Dumper;
-print Dumper($self->_objects);
-print Dumper($self->_contains);
-print Dumper($self->_sg);
-
     foreach my $object ($self->objects) {
       my %extra = ();
       $extra{ shape } = 'box';
