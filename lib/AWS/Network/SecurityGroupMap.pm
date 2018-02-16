@@ -1,14 +1,28 @@
-package AWS::Network::Object;
+package AWS::Map::Object;
   use Moose;
-  has type => (is => 'ro', isa => 'Str');
-  has name => (is => 'ro', isa => 'Str');
+  has type => (is => 'ro', isa => 'Str', required => 1);
+  has name => (is => 'ro', isa => 'Str', required => 1);
+  has label => (is => 'ro', isa => 'Str');
+
+package AWS::Map::SG;
+  use Moose;
+  has name => (is => 'ro', isa => 'Str', required => 1);
+  has label => (is => 'ro', isa => 'Str', required => 1);
+  has listens_to => (is => 'ro', isa => 'HashRef', default => sub { {} });
+
+  sub set_listens_to {
+    my ($self, $o2, $port) = @_;
+
+    $self->listens_to->{ $o2 } = [] if (not defined $self->listens_to->{ $o2 });
+    push @{ $self->listens_to->{ $o2 } }, $port;
+  }
 
 package AWS::Network::SecurityGroupMap;
   use feature 'postderef';
   use Moose;
   use GraphViz2;
   use Paws;
-  use AWS::Network::Object;
+  use AWS::Map::Object;
 
   has graphviz => (
     is => 'ro',
@@ -40,7 +54,7 @@ package AWS::Network::SecurityGroupMap;
   
   has _objects => (
     is => 'ro',
-    isa => 'HashRef[AWS::Network::Object]',
+    isa => 'HashRef[AWS::Map::Object]',
     default => sub { {} },
     traits => [ 'Hash' ],
     handles => {
@@ -50,13 +64,13 @@ package AWS::Network::SecurityGroupMap;
 
   sub add_object {
     my ($self, %args) = @_;
-    my $o = AWS::Network::Object->new(%args);
+    my $o = AWS::Map::Object->new(%args);
     $self->_objects->{ $o->name } = $o;
   }
 
-  has _listens_to => (
+  has _sg => (
     is => 'ro',
-    isa => 'HashRef',
+    isa => 'HashRef[AWS::Map::SG]',
     default => sub { {} }
   );
 
@@ -79,26 +93,25 @@ package AWS::Network::SecurityGroupMap;
 
   sub get_who_listens {
     my $self = shift;
-    return keys %{ $self->_listens_to };
+    return keys %{ $self->_sg };
   }
 
   sub get_listens_to {
     my ($self, $o1) = @_;
-    return keys %{ $self->_listens_to->{ $o1 } };
+    return keys %{ $self->_sg->{ $o1 }->listens_to };
   }
 
   sub get_listens_on_ports {
     my ($self, $o1, $o2) = @_;
-    return @{ $self->_listens_to->{ $o1 }->{ $o2 } };
+    return @{ $self->_sg->{ $o1 }->listens_to->{ $o2 } };
   }
 
-  sub set_listens_to {
-    my ($self, $o1, $o2, $port) = @_;
-
-    $self->_listens_to->{ $o1 } = {} if (not defined $self->_listens_to->{ $o1 });
-    $self->_listens_to->{ $o1 }->{ $o2 } = [] if (not defined $self->_listens_to->{ $o1 }->{ $o2 });
-    push @{ $self->_listens_to->{ $o1 }->{ $o2 } }, $port;
+  sub register_sg {
+    my ($self, %params) = @_;
+    die "Can't register without a name" if (not defined $params{ name });
+    return $self->_sg->{ $params{ name } } = AWS::Map::SG->new(%params);
   }
+
 
   sub _scan_elbs {
     my $self = shift;
@@ -164,6 +177,8 @@ package AWS::Network::SecurityGroupMap;
 
     my $sgs = $self->aws->service('EC2')->DescribeSecurityGroups;
     foreach my $sg ($sgs->SecurityGroups->@*) {
+      my $model = $self->register_sg(name => $sg->GroupId, label => $sg->Description);
+
       foreach my $ip_perm ($sg->IpPermissions->@*){
         my $port;
         if ($ip_perm->IpProtocol eq 'icmp') {
@@ -178,16 +193,16 @@ package AWS::Network::SecurityGroupMap;
         }
 
         foreach my $ip_r ($ip_perm->IpRanges->@*) {
-          $self->set_listens_to($sg->GroupId, $ip_r->CidrIp, $port);
+          $model->set_listens_to($ip_r->CidrIp, $port);
         }
         foreach my $ip_r ($ip_perm->Ipv6Ranges->@*) {
-          $self->set_listens_to($sg->GroupId, $ip_r->CidrIpv6, $port);
+          $model->set_listens_to($ip_r->CidrIpv6, $port);
         }
         foreach my $ip_p ($ip_perm->PrefixListIds->@*) {
           die "Don't know how to handle PrefixLists yet";
         }
         foreach my $ip_p ($ip_perm->UserIdGroupPairs->@*) {
-          $self->set_listens_to($sg->GroupId, $ip_p->GroupId, $port);
+          $model->set_listens_to($ip_p->GroupId, $port);
         }
       }
     }
