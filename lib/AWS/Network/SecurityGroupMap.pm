@@ -166,14 +166,15 @@ package AWS::Network::SecurityGroupMap;
     foreach my $sg ($sgs->SecurityGroups->@*) {
       foreach my $ip_perm ($sg->IpPermissions->@*){
         my $port;
-        if ($ip_perm->IpProtocol == -1) {
-          $port = 'icmp';
+        if ($ip_perm->IpProtocol eq 'icmp') {
+          $port = 'ICMP';
         } else {
           if ($ip_perm->FromPort == $ip_perm->ToPort) {
             $port = $ip_perm->FromPort;
           } else {
             $port = $ip_perm->FromPort . '-' . $ip_perm->ToPort;
           }
+          $port .= ' UDP' if ($ip_perm->IpProtocol eq 'udp');
         }
 
         foreach my $ip_r ($ip_perm->IpRanges->@*) {
@@ -228,7 +229,7 @@ print Dumper($self->_listens_to);
           @things_in_sg2 = ("Things in $listened_to") if (not @things_in_sg2);
 
           foreach my $thing_listened_to (@things_in_sg2){
-            my $label = join ',', $self->get_listens_on_ports($listener, $listened_to);
+            my $label = join ', ', $self->get_listens_on_ports($listener, $listened_to);
             $self->graphviz->add_edge(
               from => $thing_listened_to,
               to => $thing_in_sg,
