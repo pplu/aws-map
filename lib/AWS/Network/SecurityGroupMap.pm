@@ -195,6 +195,8 @@ package AWS::Network::SecurityGroupMap;
         my $port;
         if ($ip_perm->IpProtocol eq 'icmp') {
           $port = 'ICMP';
+        } elsif ($ip_perm->IpProtocol eq '-1') {
+          $port = 'All IP traffic';
         } else {
           if ($ip_perm->FromPort == $ip_perm->ToPort) {
             $port = $ip_perm->FromPort;
