@@ -59,20 +59,22 @@ package AWS::Network::SecurityGroupMap;
     isa => 'HashRef',
     default => sub { {} }
   );
-  has _is_in_set => (
+
+  # holds what objects an SG contains
+  has _contains => (
     is => 'ro',
     isa => 'HashRef',
     default => sub { {} }
   );
 
-  sub is_in_set {
-    my ($self, $object, $set) = @_;
-    $self->_is_in_set->{ $set }->{ $object } = 1;
+  sub sg_holds {
+    my ($self, $sg, $object) = @_;
+    $self->_contains->{ $sg }->{ $object } = 1;
   }
 
-  sub in_set {
-    my ($self, $set) = @_;
-    keys %{ $self->_is_in_set->{ $set } };
+  sub get_objects_in_sg {
+    my ($self, $sg) = @_;
+    keys %{ $self->_contains->{ $sg } };
   }
 
   sub get_who_listens {
@@ -80,9 +82,14 @@ package AWS::Network::SecurityGroupMap;
     return keys %{ $self->_listens_to };
   }
 
-  sub get_talks_to {
+  sub get_listens_to {
     my ($self, $o1) = @_;
     return keys %{ $self->_listens_to->{ $o1 } };
+  }
+
+  sub get_listens_on_ports {
+    my ($self, $o1, $o2) = @_;
+    return @{ $self->_listens_to->{ $o1 }->{ $o2 } };
   }
 
   sub set_listens_to {
@@ -102,7 +109,7 @@ package AWS::Network::SecurityGroupMap;
         $self->add_object(name => $instance->InstanceId, type => 'i');
 
         foreach my $sg ($instance->SecurityGroups->@*) {
-          $self->is_in_set($instance->InstanceId, $sg->GroupId);
+          $self->sg_holds($sg->GroupId, $instance->InstanceId);
         }
       }
     });
@@ -154,7 +161,7 @@ package AWS::Network::SecurityGroupMap;
 
 use Data::Dumper;
 print Dumper($self->_objects);
-print Dumper($self->_is_in_set);
+print Dumper($self->_contains);
 print Dumper($self->_listens_to);
 
     foreach my $object ($self->objects) {
@@ -171,13 +178,17 @@ print Dumper($self->_listens_to);
       @things_in_sg = ("Things in $listener") if (not @things_in_sg);
 
       foreach my $thing_in_sg (@things_in_sg) {
-        foreach my $talks_to ($self->get_talks_to($listener)){
-          my @things_in_sg2 = $self->in_set($talks_to);
-          @things_in_sg2 = ("Things in $talks_to") if (not @things_in_sg2);
+        foreach my $listened_to ($self->get_listens_to($listener)){
+          my @things_in_sg2 = $self->get_objects_in_sg($listened_to);
+          @things_in_sg2 = ("Things in $listened_to") if (not @things_in_sg2);
 
-          foreach my $talked_to (@things_in_sg2){
-            #$self->graphviz->add_edge(from => $talked_to, to => $thing_in_sg);
-            $self->graphviz->add_edge(from => $thing_in_sg, to => $talked_to);
+          foreach my $thing_listened_to (@things_in_sg2){
+            my $label = join ',', $self->get_listens_on_ports($listener, $listened_to);
+            $self->graphviz->add_edge(
+              from => $thing_listened_to,
+              to => $thing_in_sg,
+              label => $label,
+            );
           }
         }
       }
