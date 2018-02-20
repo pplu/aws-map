@@ -253,6 +253,11 @@ package AWS::Network::SecurityGroupMap {
   sub draw {
     my ($self) = @_;
 
+    my %font_config = (fontname => 'Lucida', fontsize => 10);
+    $self->graphviz->default_node (%font_config, shape => 'none');
+    $self->graphviz->default_edge (%font_config);
+    $self->graphviz->default_graph(%font_config);
+
     foreach my $object ($self->objects) {
       my %extra = ();
       #$extra{ labelloc } = 't';
