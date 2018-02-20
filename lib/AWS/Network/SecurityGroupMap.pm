@@ -280,7 +280,16 @@ package AWS::Network::SecurityGroupMap {
           $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
           @things_in_sg = ($listener);
         } else {
-          @things_in_sg = ("Things in $listener");
+          my ($icon, $label);
+          if ($listener eq '0.0.0.0/0') { 
+            $label = 'The Internet';
+            $icon = $self->icons->{ internet }
+          } else {
+            $label = $listener;
+            $icon = $self->icons->{ network };
+          }
+          $self->graphviz->add_node(name => $listener, label => $label, image => $icon);
+          @things_in_sg = ($listener);
         }
       }
 
@@ -294,7 +303,17 @@ package AWS::Network::SecurityGroupMap {
               $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
               @things_in_sg2 = ($listened_to);
             } else {
-              @things_in_sg2 = ("Things in $listened_to");
+              my ($icon, $label);
+              if ($listened_to eq '0.0.0.0/0') { 
+                $label = 'The Internet';
+                $icon = $self->icons->{ internet }
+              } else {
+                $label = $listened_to;
+                $icon = $self->icons->{ network };
+              }
+
+              $self->graphviz->add_node(name => $listened_to, label => $label, image => $icon);
+              @things_in_sg2 = ($listened_to);
             }
           }
 
