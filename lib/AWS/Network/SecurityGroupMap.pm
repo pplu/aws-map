@@ -225,8 +225,8 @@ package AWS::Network::SecurityGroupMap {
     }
   }
 
-  sub run {
-    my ($self) = @_;
+  sub scan {
+    my $self = shift;
 
     $self->_scan_instances;
     #$self->_scan_autoscalinggroups;
@@ -236,6 +236,10 @@ package AWS::Network::SecurityGroupMap {
     #$self->_scan_redshift;
 
     $self->_scan_securitygroups;
+  }
+
+  sub draw {
+    my ($self) = @_;
 
     foreach my $object ($self->objects) {
       my %extra = ();

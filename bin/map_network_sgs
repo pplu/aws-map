@@ -8,4 +8,5 @@ my $map = AWS::Network::SecurityGroupMap->new(
   region => $region, 
 );
 
-$map->run;
+$map->scan;
+$map->draw;
