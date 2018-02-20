@@ -27,6 +27,18 @@ package AWS::Network::SecurityGroupMap {
   use AWS::Map::Object;
   no warnings 'experimental::postderef';
 
+  has icons => (
+    is => 'ro',
+    default => sub { {
+      i => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_AmazonEC2_instance.png",
+      elb => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_ElasticLoadBalancing_ClassicLoadbalancer.png",
+      alb => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_ElasticLoadBalancing_ApplicationLoadBalancer.png",
+      rds => "icons/PNG\,\ SVG\,\ EPS/Database/Database_AmazonRDS_DBinstance.png",
+      network => "icons/PNG, SVG, EPS/General/General_Internetalternate1.png",
+      internet => "icons/PNG, SVG, EPS/General/General_Internetalternate2.png",
+    } },
+  );
+
   has graphviz => (
     is => 'ro',
     lazy => 1,
@@ -243,11 +255,12 @@ package AWS::Network::SecurityGroupMap {
 
     foreach my $object ($self->objects) {
       my %extra = ();
-      $extra{ shape } = 'box';
-      $extra{ labelloc } = 'b';
+      #$extra{ labelloc } = 't';
       $extra{ label } = $object->name;
-      $extra{ label } .= sprintf " (%s)", $object->type if ($object->type ne 'i');
-      $extra{ label } .= $object->label if (defined $object->label);
+      $extra{ label } .= ' ' . $object->label if (defined $object->label);
+
+      my $icon = $self->icons->{ $object->type };
+      $extra{ image } = $icon if (defined $icon);
 
       $self->graphviz->add_node(name => $object->name, %extra);
     }
