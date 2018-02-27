@@ -292,14 +292,6 @@ package AWS::Network::SecurityGroupMap {
         }
       }
     }
-
-    say "Generating graph.dot";
-    $self->graphviz->run(format => 'dot', output_file => 'graph.dot');
-    say "Generating graph.svg";
-    $self->graphviz->run(format => 'svg', output_file => 'graph.svg');
-    say "Generating graph.png";
-    $self->graphviz->run(format => 'png', output_file => 'graph.png');
-    say "Done";
   }
 }
 1;
