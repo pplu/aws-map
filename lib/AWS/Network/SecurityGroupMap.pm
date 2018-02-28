@@ -52,7 +52,7 @@ package AWS::Network::SecurityGroupMap {
   has region => (is => 'ro', isa => 'Str', required => 1);
   has title => (is => 'ro', isa => 'Str', lazy => 1, default => sub {
     my $self = shift;
-    "AWS " . $self->region . " " . scalar(localtime);  
+    "Mapped by https://github.com/pplu/aws-map for region " . $self->region . " on " . scalar(localtime);
   });
   
   has _objects => (
