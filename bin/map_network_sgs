@@ -4,7 +4,7 @@ use v5.10;
 use AWS::Network::SecurityGroupMap;
 
 my $region = $ARGV[0] or die "Usage: $0 region [name]";
-my $name = $ARGV[1] or 'graph';
+my $name = $ARGV[1] || 'graph';
 
 my $map = AWS::Network::SecurityGroupMap->new(
   region => $region, 
@@ -14,10 +14,10 @@ say "Scanning AWS $region";
 $map->scan;
 say "Generating graph";
 $map->draw;
-say "Generating graph.dot";
+say "Generating $name.dot";
 $map->graphviz->run(format => 'dot', output_file => "$name.dot");
-say "Generating graph.svg";
+say "Generating $name.svg";
 $map->graphviz->run(format => 'svg', output_file => "$name.svg");
-say "Generating graph.png";
+say "Generating $name.png";
 $map->graphviz->run(format => 'png', output_file => "$name.png");
 say "Done";
