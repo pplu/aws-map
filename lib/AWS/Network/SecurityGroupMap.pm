@@ -64,7 +64,7 @@ package AWS::Network::SecurityGroupMap {
   has region => (is => 'ro', isa => 'Str', required => 1);
   has title => (is => 'ro', isa => 'Str', lazy => 1, default => sub {
     my $self = shift;
-    "AWS " . $self->region . " " . scalar(localtime);  
+    "Mapped by https://github.com/pplu/aws-map for region " . $self->region . " on " . scalar(localtime);
   });
   
   has _objects => (
@@ -329,14 +329,6 @@ package AWS::Network::SecurityGroupMap {
         }
       }
     }
-
-    say "Generating graph.dot";
-    $self->graphviz->run(format => 'dot', output_file => 'graph.dot');
-    say "Generating graph.svg";
-    $self->graphviz->run(format => 'svg', output_file => 'graph.svg');
-    say "Generating graph.png";
-    $self->graphviz->run(format => 'png', output_file => 'graph.png');
-    say "Done";
   }
 }
 1;
