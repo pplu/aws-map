@@ -4,6 +4,14 @@ package AWS::Map::Object {
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str');
 
+  has icon => (is => 'ro', isa => 'Maybe[Str]', default => sub {
+    my $self = shift;
+    return undef if (not defined $self->type);
+    my $file = sprintf 'icons/%s.png', $self->type;
+    return $file if (-e $file);
+    warn "Can't find file $file";
+    return undef;
+  });
 }
 package AWS::Map::SG {
   use Moose;
@@ -26,18 +34,6 @@ package AWS::Network::SecurityGroupMap {
   use Paws;
   use AWS::Map::Object;
   no warnings 'experimental::postderef';
-
-  has icons => (
-    is => 'ro',
-    default => sub { {
-      i => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_AmazonEC2_instance.png",
-      elb => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_ElasticLoadBalancing_ClassicLoadbalancer.png",
-      alb => "icons/PNG\,\ SVG\,\ EPS/Compute/Compute_ElasticLoadBalancing_ApplicationLoadBalancer.png",
-      rds => "icons/PNG\,\ SVG\,\ EPS/Database/Database_AmazonRDS_DBinstance.png",
-      network => "icons/PNG, SVG, EPS/General/General_Internetalternate1.png",
-      internet => "icons/PNG, SVG, EPS/General/General_Internetalternate2.png",
-    } },
-  );
 
   has graphviz => (
     is => 'ro',
@@ -296,10 +292,26 @@ package AWS::Network::SecurityGroupMap {
       $extra{ label } = $object->name;
       $extra{ label } .= ' ' . $object->label if (defined $object->label);
 
-      my $icon = $self->icons->{ $object->type };
-      $extra{ image } = $icon if (defined $icon);
+      if (defined $object->icon) {
+        $extra{ image } = $object->icon
+      } else {
+        $extra{ shape } = 'box';
+      }
 
       $self->graphviz->add_node(name => $object->name, %extra);
+    }
+
+    sub ip_to_object {
+      my ($self, $ip) = @_;
+
+      my $label = ($ip eq '0.0.0.0/0') ? 'The Internet' : $ip;
+      my $type  = ($ip eq '0.0.0.0/0') ? 'internet' : 'network';
+
+      return AWS::Map::Object->new(
+        type => $type,
+        name => $ip,
+        label => $label
+      );
     }
 
     foreach my $listener ($self->get_who_listens) {
@@ -312,15 +324,8 @@ package AWS::Network::SecurityGroupMap {
           $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
           @things_in_sg = ($listener);
         } else {
-          my ($icon, $label);
-          if ($listener eq '0.0.0.0/0') { 
-            $label = 'The Internet';
-            $icon = $self->icons->{ internet }
-          } else {
-            $label = $listener;
-            $icon = $self->icons->{ network };
-          }
-          $self->graphviz->add_node(name => $listener, label => $label, image => $icon);
+          my $ip = $self->ip_to_object($listener);
+          $self->graphviz->add_node(name => $ip->name, label => $ip->label, image => $ip->icon);
           @things_in_sg = ($listener);
         }
       }
@@ -335,16 +340,8 @@ package AWS::Network::SecurityGroupMap {
               $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
               @things_in_sg2 = ($listened_to);
             } else {
-              my ($icon, $label);
-              if ($listened_to eq '0.0.0.0/0') { 
-                $label = 'The Internet';
-                $icon = $self->icons->{ internet }
-              } else {
-                $label = $listened_to;
-                $icon = $self->icons->{ network };
-              }
-
-              $self->graphviz->add_node(name => $listened_to, label => $label, image => $icon);
+              my $ip = $self->ip_to_object($listened_to);
+              $self->graphviz->add_node(name => $ip->name, label => $ip->label, image => $ip->icon);
               @things_in_sg2 = ($listened_to);
             }
           }
