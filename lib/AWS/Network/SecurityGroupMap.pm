@@ -4,7 +4,7 @@ package AWS::Map::Object {
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str');
 
-  has icon => (is => 'ro', isa => 'Maybe[Str]', default => sub {
+  has icon => (is => 'ro', isa => 'Maybe[Str]', lazy => 1, default => sub {
     my $self = shift;
     return undef if (not defined $self->type);
     my $file = sprintf 'icons/%s.png', $self->type;
