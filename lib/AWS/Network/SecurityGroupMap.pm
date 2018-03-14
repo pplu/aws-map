@@ -321,7 +321,7 @@ package AWS::Network::SecurityGroupMap {
         my $sg = $self->get_sg($listener);
         if (defined $sg) {
           my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
-          $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+          $self->graphviz->add_node(name => $sg->name, label => $sg->label, image => 'icons/security_group.png');
           @things_in_sg = ($listener);
         } else {
           my $ip = $self->ip_to_object($listener);
@@ -337,7 +337,7 @@ package AWS::Network::SecurityGroupMap {
             my $sg = $self->get_sg($listened_to);
             if (defined $sg) {
               my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
-              $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+              $self->graphviz->add_node(name => $sg->name, label => $sg->label, image => 'icons/security_group.png');
               @things_in_sg2 = ($listened_to);
             } else {
               my $ip = $self->ip_to_object($listened_to);
