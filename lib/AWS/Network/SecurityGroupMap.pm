@@ -161,6 +161,18 @@ package AWS::Network::SecurityGroupMap {
     });
   }
 
+  sub _scan_redshift {
+    my $self = shift;
+
+    $self->aws->service('RedShift')->DescribeAllClusters(sub {
+      my $cluster = shift;
+      $self->add_object(name => $cluster->ClusterIdentifier, type => 'redshift');
+
+      foreach my $sg ($cluster->VpcSecurityGroups->@*) {
+        $self->sg_holds($sg->VpcSecurityGroupId, $cluster->ClusterIdentifier);
+      }
+    });
+  }
 
   sub _scan_rds {
     my $self = shift;
@@ -174,7 +186,8 @@ package AWS::Network::SecurityGroupMap {
       }
     });
 
-    #TODO: DescribeAllDBClusters
+    #TODO: DescribeAllDBClusters doesn't have a paginator
+    #$self->aws->service('RDS')->DescribeDBClusters
   }
 
   sub _scan_instances {
@@ -197,6 +210,21 @@ package AWS::Network::SecurityGroupMap {
         }
       }
     });
+  }
+
+  sub _scan_elasticache {
+    my $self = shift;
+
+    $self->aws->service('ElastiCache')->DescribeAllCacheClusters(sub {
+      my $cluster = shift;
+      my $engine = $cluster->Engine; # either memcached or redis
+      $self->add_object(name => $cluster->CacheClusterId, type => $engine);
+
+      foreach my $sg ($cluster->SecurityGroups->@*) {
+        $self->sg_holds($sg->SecurityGroupId, $cluster->CacheClusterId);
+      }
+    });
+
   }
 
   sub _scan_securitygroups {
@@ -245,7 +273,11 @@ package AWS::Network::SecurityGroupMap {
     $self->_scan_elbs;
     $self->_scan_elbv2s;
     $self->_scan_rds;
-    #$self->_scan_redshift;
+    $self->_scan_redshift;
+    $self->_scan_elasticache;
+    #$self->_scan_efs;
+    #$self->_scan_dax;
+    #$self->_scan_emr;
 
     $self->_scan_securitygroups;
   }
