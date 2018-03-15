@@ -36,7 +36,6 @@ package AWS::Network::SecurityGroupMap {
         global => { directed => 1, ranksep => 5 },
         graph => {
           label => $self->title,
-          #layout => 'twopi',
         },
       );
     }
