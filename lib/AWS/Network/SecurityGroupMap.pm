@@ -3,6 +3,7 @@ package AWS::Map::Object {
   has type => (is => 'ro', isa => 'Str', required => 1);
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str');
+  has belongs_to => (is => 'ro', isa => 'Str');
 
   has icon => (is => 'ro', isa => 'Maybe[Str]', lazy => 1, default => sub {
     my $self = shift;
@@ -186,19 +187,35 @@ package AWS::Network::SecurityGroupMap {
     #$self->aws->service('RDS')->DescribeDBClusters
   }
 
+  sub _scan_autoscalinggroups {
+    my $self = shift;
+
+    $self->aws->service('AutoScaling')->DescribeAllAutoScalingGroups(sub {
+      my $asg = shift;
+
+      $self->add_object(
+        name => $asg->AutoScalingGroupName,
+        type => 'asg',
+      );
+    });
+  }
+
   sub _scan_instances {
     my $self = shift;
 
     $self->aws->service('EC2')->DescribeAllInstances(sub {
       my $rsv = shift;
       foreach my $instance ($rsv->Instances->@*) {
+        # Derive information from tags
         # Get the value of a tag named 'Name' from the list of tag objects
-        my ($tag) = map { $_->Value } grep { $_->Key eq 'Name' } $instance->Tags->@*; 
+        my ($tag) = map { $_->Value } grep { $_->Key eq 'Name' } $instance->Tags->@*;
+        my ($asg_name) = map { $_->Value } grep { $_->Key eq 'aws:autoscaling:groupName' } $instance->Tags->@*;
 
         $self->add_object(
           name => $instance->InstanceId,
           type => 'i',
           (defined $tag)?(label => $tag):(),
+          (defined $asg_name) ? (belongs_to => $asg_name) : (),
         );
 
         foreach my $sg ($instance->SecurityGroups->@*) {
@@ -265,7 +282,7 @@ package AWS::Network::SecurityGroupMap {
     my $self = shift;
 
     $self->_scan_instances;
-    #$self->_scan_autoscalinggroups;
+    $self->_scan_autoscalinggroups;
     $self->_scan_elbs;
     $self->_scan_elbv2s;
     $self->_scan_rds;
@@ -278,6 +295,19 @@ package AWS::Network::SecurityGroupMap {
     $self->_scan_securitygroups;
   }
 
+  sub ip_to_object {
+    my ($self, $ip) = @_;
+
+    my $label = ($ip eq '0.0.0.0/0') ? 'The Internet' : $ip;
+    my $type  = ($ip eq '0.0.0.0/0') ? 'internet' : 'network';
+
+    return AWS::Map::Object->new(
+      type => $type,
+      name => $ip,
+      label => $label
+    );
+  }
+
   sub draw {
     my ($self) = @_;
 
@@ -286,32 +316,48 @@ package AWS::Network::SecurityGroupMap {
     $self->graphviz->default_edge (%font_config);
     $self->graphviz->default_graph(%font_config);
 
+    my $groups = {};
     foreach my $object ($self->objects) {
-      my %extra = ();
-      #$extra{ labelloc } = 't';
-      $extra{ label } = $object->name;
-      $extra{ label } .= ' ' . $object->label if (defined $object->label);
+      next if ($object->type eq 'asg');
 
-      if (defined $object->icon) {
-        $extra{ image } = $object->icon
-      } else {
-        $extra{ shape } = 'box';
-      }
+      my $group = $object->belongs_to;
+      $group = 'default' if (not defined $group);
 
-      $self->graphviz->add_node(name => $object->name, %extra);
+      $groups->{ $group }->{ $object->name } = $object;
     }
 
-    sub ip_to_object {
-      my ($self, $ip) = @_;
+    foreach my $group_name (keys $groups->%*) {
+      if ($group_name ne 'default') {
+        $self->graphviz->push_subgraph(
+          name  => "cluster_$group_name",
+          graph => { label => $group_name, style => 'dotted' }
+        );
 
-      my $label = ($ip eq '0.0.0.0/0') ? 'The Internet' : $ip;
-      my $type  = ($ip eq '0.0.0.0/0') ? 'internet' : 'network';
+        $self->graphviz->add_node(name => "$group_name-scale-r", label => '', image => 'icons/asg-right.png');
+      }
 
-      return AWS::Map::Object->new(
-        type => $type,
-        name => $ip,
-        label => $label
-      );
+      foreach my $object (keys $groups->{ $group_name }->%*) {
+        my $object = $groups->{ $group_name }->{ $object };
+
+        my %extra = ();
+        #$extra{ labelloc } = 't';
+        $extra{ label } = $object->name;
+        $extra{ label } .= ' ' . $object->label if (defined $object->label);
+
+        if (defined $object->icon) {
+          $extra{ image } = $object->icon
+        } else {
+          $extra{ shape } = 'box';
+        }
+
+        $self->graphviz->add_node(name => $object->name, %extra);
+      }
+      
+      if ($group_name ne 'default') {
+        $self->graphviz->add_node(name => "$group_name-scale-l", label => '', image => 'icons/asg-left.png');
+
+        $self->graphviz->pop_subgraph;
+      }
     }
 
     foreach my $listener ($self->get_who_listens) {
