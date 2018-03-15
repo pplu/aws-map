@@ -18,16 +18,29 @@ cd aws-map
 carton install
 ```
 
-## How it works
+## Generating images
 
-Give it an AWS region to scan
+You can scan your infrastructure with two utilities:
 
 ```
 carton exec perl -I lib bin/map_network_sgs eu-west-1
 ```
 
-And it will generate three files: `graph.svg`, `graph.dot` and `graph.png`. These
+This will generate three files: `graph.svg`, `graph.dot` and `graph.png`. These
 all have the same contents in different formats SVG, DOT (for graphviz) and PNG
+
+Optionally you can pass a second parameter with the prefix for the the images to
+be generated. Note that the three extensions will be added to the prefix
+
+## Self-Hosted web server
+
+```
+carton exec perl -I lib bin/map-webserver eu-west-1
+```
+
+This will prompt you to visit `http://localhost:3000` where there is a small web application
+that has a viewer with zooming and panning. This is very convenient to navigate the map 
+(specially big ones)
 
 ## Understanding the graph
 
@@ -51,9 +64,11 @@ With a quick look at the example graph we can see the following:
 
 ![Graph Example](https://raw.githubusercontent.com/pplu/aws-map/master/examples/graph1.png)
 
-"Things in ...../32" is an IP that can talk to ...Server via port 5671
+Things in 1.1.1.1/32 can talk to the instances via HTTP and SSH.
 
-There is a Security Group (in the upper left) with nothing in it that can talk to an ALB. That ALB can talk to it's backend instance through ports 8000 and 3000. That backend instance talks to an RDS via port 3306.
+The ELB is open to the Internet via HTTPS. It talks to instances via HTTP.
+
+The instances talk to an RDS on port 3306
 
 ## Known limitations
 
