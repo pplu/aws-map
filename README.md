@@ -35,11 +35,15 @@ The generated graph attempts to show you your AWS region from a networking persp
 
 The graphs' nodes are "things" that can talk IP (Network hosts, Instances, etc.)
 
-Network Hosts and Network Ranges are represented as Ellipses.
+![Network Icon](https://github.com/pplu/aws-map/raw/master/icons/network.png) Network Hosts and Network Ranges.
 
-Instances, RDSs, ELBs... (AWS objects) are represented with a rectangle.
+![Internet Icon](https://github.com/pplu/aws-map/raw/master/icons/internet.png) We have a special icon for 0.0.0.0/0, tagging it as "The Internet"
 
-Hexagons are Security Groups with nothing in them.
+![Instance Icon](https://github.com/pplu/aws-map/raw/master/icons/i.png)...![RDS Icon](https://github.com/pplu/aws-map/raw/master/icons/rds.png) Instances, RDSs, ELBs... (AWS objects) are represented with their respetive icons. If there is no icon the object is just a box.
+
+![Security Group Icon](https://github.com/pplu/aws-map/raw/master/icons/security_group.png) are Security Groups with nothing in them. You may want to evaluate deleting them.
+
+Instances in an autoscaling group will be surrounded in a dotted box with "autoscaling arrows" to left and right.
 
 Arrows tell you in what direction IP connections (TCP, UDP, ICMP, etc) can flow (what can talk to what). Only incoming connections are graphed (Outbound rules aren't scanned yet). When a port range is not labeled, it means that the ports are TCP (i.e.: "25" means TCP port 25. "25-27" means TCP ports 25 to 27). If the ports are UDP, they are indicated: "25-27 UDP").
 
@@ -78,3 +82,6 @@ it and/or modify it under the same terms as Perl itself.
 
 The full text of the license can be found in the
 LICENSE file included with this module.
+
+Icons come from [AWS Simple Icons collection](https://aws.amazon.com/es/architecture/icons/) and are (c) AWS
+
