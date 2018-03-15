@@ -3,7 +3,16 @@ package AWS::Map::Object {
   has type => (is => 'ro', isa => 'Str', required => 1);
   has name => (is => 'ro', isa => 'Str', required => 1);
   has label => (is => 'ro', isa => 'Str');
+  has belongs_to => (is => 'ro', isa => 'Str');
 
+  has icon => (is => 'ro', isa => 'Maybe[Str]', lazy => 1, default => sub {
+    my $self = shift;
+    return undef if (not defined $self->type);
+    my $file = sprintf 'icons/%s.png', $self->type;
+    return $file if (-e $file);
+    warn "Can't find file $file";
+    return undef;
+  });
 }
 package AWS::Map::SG {
   use Moose;
@@ -148,6 +157,18 @@ package AWS::Network::SecurityGroupMap {
     });
   }
 
+  sub _scan_redshift {
+    my $self = shift;
+
+    $self->aws->service('RedShift')->DescribeAllClusters(sub {
+      my $cluster = shift;
+      $self->add_object(name => $cluster->ClusterIdentifier, type => 'redshift');
+
+      foreach my $sg ($cluster->VpcSecurityGroups->@*) {
+        $self->sg_holds($sg->VpcSecurityGroupId, $cluster->ClusterIdentifier);
+      }
+    });
+  }
 
   sub _scan_rds {
     my $self = shift;
@@ -161,7 +182,21 @@ package AWS::Network::SecurityGroupMap {
       }
     });
 
-    #TODO: DescribeAllDBClusters
+    #TODO: DescribeAllDBClusters doesn't have a paginator
+    #$self->aws->service('RDS')->DescribeDBClusters
+  }
+
+  sub _scan_autoscalinggroups {
+    my $self = shift;
+
+    $self->aws->service('AutoScaling')->DescribeAllAutoScalingGroups(sub {
+      my $asg = shift;
+
+      $self->add_object(
+        name => $asg->AutoScalingGroupName,
+        type => 'asg',
+      );
+    });
   }
 
   sub _scan_instances {
@@ -170,13 +205,16 @@ package AWS::Network::SecurityGroupMap {
     $self->aws->service('EC2')->DescribeAllInstances(sub {
       my $rsv = shift;
       foreach my $instance ($rsv->Instances->@*) {
+        # Derive information from tags
         # Get the value of a tag named 'Name' from the list of tag objects
-        my ($tag) = map { $_->Value } grep { $_->Key eq 'Name' } $instance->Tags->@*; 
+        my ($tag) = map { $_->Value } grep { $_->Key eq 'Name' } $instance->Tags->@*;
+        my ($asg_name) = map { $_->Value } grep { $_->Key eq 'aws:autoscaling:groupName' } $instance->Tags->@*;
 
         $self->add_object(
           name => $instance->InstanceId,
           type => 'i',
           (defined $tag)?(label => $tag):(),
+          (defined $asg_name) ? (belongs_to => $asg_name) : (),
         );
 
         foreach my $sg ($instance->SecurityGroups->@*) {
@@ -184,6 +222,21 @@ package AWS::Network::SecurityGroupMap {
         }
       }
     });
+  }
+
+  sub _scan_elasticache {
+    my $self = shift;
+
+    $self->aws->service('ElastiCache')->DescribeAllCacheClusters(sub {
+      my $cluster = shift;
+      my $engine = $cluster->Engine; # either memcached or redis
+      $self->add_object(name => $cluster->CacheClusterId, type => $engine);
+
+      foreach my $sg ($cluster->SecurityGroups->@*) {
+        $self->sg_holds($sg->SecurityGroupId, $cluster->CacheClusterId);
+      }
+    });
+
   }
 
   sub _scan_securitygroups {
@@ -228,27 +281,82 @@ package AWS::Network::SecurityGroupMap {
     my $self = shift;
 
     $self->_scan_instances;
-    #$self->_scan_autoscalinggroups;
+    $self->_scan_autoscalinggroups;
     $self->_scan_elbs;
     $self->_scan_elbv2s;
     $self->_scan_rds;
-    #$self->_scan_redshift;
+    $self->_scan_redshift;
+    $self->_scan_elasticache;
+    #$self->_scan_efs;
+    #$self->_scan_dax;
+    #$self->_scan_emr;
 
     $self->_scan_securitygroups;
+  }
+
+  sub ip_to_object {
+    my ($self, $ip) = @_;
+
+    my $label = ($ip eq '0.0.0.0/0') ? 'The Internet' : $ip;
+    my $type  = ($ip eq '0.0.0.0/0') ? 'internet' : 'network';
+
+    return AWS::Map::Object->new(
+      type => $type,
+      name => $ip,
+      label => $label
+    );
   }
 
   sub draw {
     my ($self) = @_;
 
-    foreach my $object ($self->objects) {
-      my %extra = ();
-      $extra{ shape } = 'box';
-      $extra{ labelloc } = 'b';
-      $extra{ label } = $object->name;
-      $extra{ label } .= sprintf " (%s)", $object->type if ($object->type ne 'i');
-      $extra{ label } .= $object->label if (defined $object->label);
+    my %font_config = (fontname => 'Lucida', fontsize => 10);
+    $self->graphviz->default_node (%font_config, shape => 'none');
+    $self->graphviz->default_edge (%font_config);
+    $self->graphviz->default_graph(%font_config);
 
-      $self->graphviz->add_node(name => $object->name, %extra);
+    my $groups = {};
+    foreach my $object ($self->objects) {
+      next if ($object->type eq 'asg');
+
+      my $group = $object->belongs_to;
+      $group = 'default' if (not defined $group);
+
+      $groups->{ $group }->{ $object->name } = $object;
+    }
+
+    foreach my $group_name (keys $groups->%*) {
+      if ($group_name ne 'default') {
+        $self->graphviz->push_subgraph(
+          name  => "cluster_$group_name",
+          graph => { label => $group_name, style => 'dotted' }
+        );
+
+        $self->graphviz->add_node(name => "$group_name-scale-r", label => '', image => 'icons/asg-right.png');
+      }
+
+      foreach my $object (keys $groups->{ $group_name }->%*) {
+        my $object = $groups->{ $group_name }->{ $object };
+
+        my %extra = ();
+        #$extra{ labelloc } = 't';
+        $extra{ label } = $object->name;
+        $extra{ label } .= ' ' . $object->label if (defined $object->label);
+
+        if (defined $object->icon) {
+          $extra{ image } = $object->icon
+        } else {
+          $extra{ shape } = 'box';
+        }
+
+        $self->graphviz->add_node(name => $object->name, %extra);
+      }
+      
+      if ($group_name ne 'default') {
+        $self->graphviz->add_node(name => "$group_name-scale-l", label => '', image => 'icons/asg-left.png');
+
+        $self->graphviz->pop_subgraph;
+      }
     }
 
     foreach my $listener ($self->get_who_listens) {
@@ -258,10 +366,12 @@ package AWS::Network::SecurityGroupMap {
         my $sg = $self->get_sg($listener);
         if (defined $sg) {
           my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
-          $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+          $self->graphviz->add_node(name => $sg->name, label => $sg->label, image => 'icons/security_group.png');
           @things_in_sg = ($listener);
         } else {
-          @things_in_sg = ("Things in $listener");
+          my $ip = $self->ip_to_object($listener);
+          $self->graphviz->add_node(name => $ip->name, label => $ip->label, image => $ip->icon);
+          @things_in_sg = ($listener);
         }
       }
 
@@ -272,10 +382,12 @@ package AWS::Network::SecurityGroupMap {
             my $sg = $self->get_sg($listened_to);
             if (defined $sg) {
               my $label = $sg->name . ' ' . $sg->label if (defined $sg->label);
-              $self->graphviz->add_node(name => $sg->name, label => $sg->label, shape => 'hexagon');
+              $self->graphviz->add_node(name => $sg->name, label => $sg->label, image => 'icons/security_group.png');
               @things_in_sg2 = ($listened_to);
             } else {
-              @things_in_sg2 = ("Things in $listened_to");
+              my $ip = $self->ip_to_object($listened_to);
+              $self->graphviz->add_node(name => $ip->name, label => $ip->label, image => $ip->icon);
+              @things_in_sg2 = ($listened_to);
             }
           }
 
