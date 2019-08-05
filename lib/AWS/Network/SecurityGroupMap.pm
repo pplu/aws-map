@@ -151,6 +151,8 @@ package AWS::Network::SecurityGroupMap {
 
       $self->add_object(name => $elb->LoadBalancerName, type => 'alb');
 
+      return if (not defined $elb->SecurityGroups);
+
       foreach my $sg ($elb->SecurityGroups->@*) {
         $self->sg_holds($sg, $elb->LoadBalancerName);
       }
